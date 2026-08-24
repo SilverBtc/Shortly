@@ -1,0 +1,8 @@
+# pnpm 11 — les champs `pnpm` de package.json ne sont plus lus ;
+# toute la config va ici (cf. skill pnpm-project-setup).
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+allowBuilds:
+  esbuild: true
+  sharp: true
