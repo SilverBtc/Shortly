@@ -1,0 +1,51 @@
+# ==== Environnements virtuels Python ====
+.venv/
+venv/
+qwen_env/
+hf_env/
+
+# ==== Secrets & configuration locale ====
+.env
+.env.*
+!.env.example
+
+# ==== Données locales (DB, cookies TikTok, voix, musique, médias, modèles) ====
+backend/data/
+backend/storage/
+backend/models/
+
+# Cookies de session — ne JAMAIS versionner
+**/tiktok_cookies.json
+**/tiktok_cookies.txt
+
+# ==== Dépôts externes clonés ====
+qwenTTS/Qwen3-TTS/
+
+# ==== qwenTTS : sorties & artefacts locaux ====
+qwenTTS/out/
+qwenTTS/*.wav
+qwenTTS/*.log
+
+# ==== Logs ====
+*.log
+
+# ==== Python ====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ==== Node / Next.js / Remotion ====
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# ==== Docs internes (notes machine perso) ====
+README-PROJET.md
+
+# ==== Éditeurs & OS ====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
