@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -64,26 +65,30 @@ MISSION :
 3. Les paramètres d'échantillonnage optimaux.
 
 RÈGLES DU SCRIPT :
-- Calibrage durée : ~2,3 mots/seconde à l'oral en français parlé. Pour une durée D secondes, vise D×2,3 mots (±10%).
+- Calibrage durée : ~2,4 mots/seconde à l'oral en français parlé. Pour une durée D secondes, écris entre D×2,2 et D×2,6 mots (ex : 30s → 66-78 mots). Ne JAMAIS écrire moins de D×2,2 mots : sous-estimer la durée est la pire erreur.
 - Écrit à la première personne (« je »), style TikTok conversationnel, phrases courtes et punchy.
-- Structure : HOOK choc dans les 3 premières secondes → développement immersif → fin qui donne envie de commenter.
+- HUMOUR & BRAIN ROT : intègre naturellement 2 à 4 mots ou expressions du vocabulaire TikTok viral (skibidi, rizz, gyatt, sigma, goated, cooked, aura, NPC, delulu, no cap, main character, L, W, ratio, mewing, glazing, brainrot, sus, bet, fr, periodt...) pour divertir et faire rire. On préfère une formule amusante qui fait sourire à une logique parfaite : le sens peut être légèrement bancal, l'absurde est bienvenu. Les mots brain rot doivent s'intégrer naturellement dans le récit (ex : « ce mec avait un aura de ouf », « totalement sigma », « elle était delulu »), jamais en liste forcée.
+- Structure : HOOK choc ou absurde dans les 3 premières secondes → développement immersif et drôle → fin qui donne envie de commenter.
 - AUCUNE balise SSML ([pause], [rapide]...) : le modèle VoiceDesign gère la prosodie via l'instruct.
 - Pas de guillemets ni de caractères spéciaux exotiques.
 
 RÈGLES DE L'INSTRUCT VOIX (le plus important) :
 - Décris la voix comme un casting : genre, âge approximatif, timbre (grave/aigu/rauque/doux), débit, énergie, émotion dominante, intention (confession, urgence, mystère...), respiration, micro-détails vocaux (légèrement enrouée, sourire audible...).
-- Longueur : 2 à 4 phrases riches. Peut être en français ou en anglais (l'anglais fonctionne très bien).
-- Cohérente avec la situation : une confession intime ≠ un tutoriel énergique.
+- LANGUE DE L'INSTRUCT : écris l'instruct dans la MÊME langue que le script (donc en français si le script est en français). Un instruct rédigé en anglais appliqué à un script français produit un accent anglophone dérangeant — à éviter absolument.
+- ACCENT FRANÇAIS OBLIGATOIRE : précise TOUJOURS que la voix parle français avec un accent français natif, authentique et naturel (jamais d'accent étranger).
+- TON OBLIGATOIRE : la voix doit TOUJOURS être remplie d'énergie, vivante et engageante — débit soutenu, rapide et CONTINU, sans blancs ni pauses parasites, énergie haute et positive, ton direct et captivant. L'intention peut varier (confession, urgence, mystère, excitation) mais JAMAIS de ton plat, monotone ou lent, JAMAIS de blancs. Reste vivant et dynamique SANS tomber dans la théâtralité épique ou la voix de bande-annonce : la voix doit sonner comme un créateur TikTok survolté et naturel qui raconte une histoire sans reprendre son souffle.
+- Longueur : 2 à 4 phrases riches.
+- Cohérente avec la situation : une confession intime ≠ un tutoriel énergique (mais les deux restent dynamiques).
 
 RÈGLES DES PARAMÈTRES (plages autorisées) :
-- temperature: 0.7-1.2 (0.8 = posé/naturel, 1.0-1.15 = expressif/énergique)
-- top_p: 0.85-0.98
-- top_k: 20-100
-- repetition_penalty: 1.0-1.15
-- subtalker_temperature: 0.7-1.2 (prosodie/rythme)
-- subtalker_top_p: 0.85-0.98
-- subtalker_top_k: 20-100
-Choisis des valeurs adaptées au ton : narration calme → bas ; storytelling viral énergique → haut.
+- temperature: 0.8-1.0 (défaut 0.9 : vif et dynamique ; 1.0 = très expressif sans excès)
+- top_p: 0.85-0.95
+- top_k: 20-60
+- repetition_penalty: 1.0-1.1
+- subtalker_temperature: 0.9-1.1 (prosodie/rythme — 1.0 = débit vivant et dynamique ; au-delà de 1.1 = théâtral à éviter)
+- subtalker_top_p: 0.85-0.95
+- subtalker_top_k: 20-60
+Pour un rendu dynamique et énergique (sans théâtralité), choisis des valeurs moyennes-hautes (temperature ~0.9, subtalker ~1.0).
 
 FORMAT DE SORTIE — renvoie UNIQUEMENT ce JSON valide, sans markdown ni commentaire :
 {
@@ -99,6 +104,93 @@ FORMAT DE SORTIE — renvoie UNIQUEMENT ce JSON valide, sans markdown ni comment
     "subtalker_top_k": 50
   }
 }"""
+
+# Prompt utilisé quand le script généré est trop court pour la durée cible :
+# on redemande au LLM de l'allonger sans changer l'histoire.
+LENGTHEN_SCRIPT_PROMPT = """Tu es un éditeur de scripts TikTok. Ton rôle : allonger un script existant pour atteindre exactement un nombre de mots cible, SANS changer l'histoire ni le style.
+
+RÈGLES :
+- Garde le hook d'origine (les 2-3 premières phrases), le narrateur à la 1ère personne, le ton et le cliffhanger final.
+- Enrichis le développement : détails sensoriels, actions concrètes, micro-événements, montée en tension.
+- Phrases courtes, conversationnelles, punchy. Pas de balises SSML.
+- Objectif : le nombre de mots demandé par l'utilisateur (ni moins, ni beaucoup plus).
+- Renvoie UNIQUEMENT le texte du script allongé, sans introduction ni conclusion."""
+
+# Baseline d'énergie TikTok + accent français : ajoutés à l'instruct si le
+# LLM les a oubliés. IMPORTANT : ces suffixes sont en FRANÇAIS — un suffixe
+# anglais sur un script français fait dévier le modèle vers un accent anglophone.
+TIKTOK_ENERGY_SUFFIX = (
+    "Débit soutenu, rapide et continu, sans blancs ni pauses, énergie haute et "
+    "positive, ton vivant et engageant, jamais monotone, sans théâtralité excessive."
+)
+FRENCH_ACCENT_SUFFIX = "Accent français natif et authentique, comme un natif francophone."
+
+# --- Curseur d'énergie (anti-épique mais dynamique) ---------------------------
+# Plus subtalker_temperature est haut, plus la prosodie est expressive.
+# 1.0 = vivant et dynamique ; >1.1 = théâtral.
+NATURAL_TEMPERATURE = 0.9
+NATURAL_SUBTALKER_TEMPERATURE = 1.0
+MIN_TEMPERATURE = 0.8
+MAX_TEMPERATURE = 1.0
+MIN_SUBTALKER_TEMPERATURE = 0.9
+MAX_SUBTALKER_TEMPERATURE = 1.1
+_ENERGY_KEYWORDS = (
+    "energ", "dynam", "punch", "rapid", "fast", "vif", "rythm", "entrain",
+    "vital", "tonique", "vivant", "captiv", "intens", "péchu", "pechu",
+)
+_ACCENT_KEYWORDS = (
+    "accent", "français natif", "francophone", "native french", "french accent",
+    "francais natif", "parisien", "français authentique", "francais authentique",
+)
+
+
+def _count_words(text: str) -> int:
+    """Nombre approximatif de mots d'un script (séparation sur espaces)."""
+    return len([w for w in text.split() if any(c.isalnum() for c in w)])
+
+
+def _strip_punctuation(text: str) -> str:
+    """Retire la ponctuation d'un script — source de pauses/blancs non voulus
+    dans la voix finale (le modèle VoiceDesign gère la prosodie via l'instruct,
+    pas via les virgules/points).
+
+    - Supprime : . , ; : ! ? … « » “ ” ( ) [ ] { } — –
+    - Garde : lettres, chiffres, accents, apostrophes (j'ai) et traits d'union
+      (peut-être) qui font partie intégrante des mots français.
+    - Normalise les apostrophes unicode (’) et les espaces multiples.
+    """
+    text = text.replace("’", "'")
+    text = re.sub(r"[.,;:!?…«»“”\"()\[\]{}–—]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    # Recoller les espaces autour des apostrophes / tirets : "j' ai" -> "j'ai"
+    text = re.sub(r"\s+'\s*", "'", text)
+    text = re.sub(r"\s*'\s+", "'", text)
+    text = re.sub(r"\s*-\s*", "-", text)
+    return text
+
+
+def _ensure_energy(instruct: str) -> str:
+    """Garantit que l'instruct porte la baseline d'énergie TikTok.
+
+    Si la description ne mentionne aucune notion d'énergie/dynamisme, on
+    ajoute le suffixe énergie (l'oubli le plus courant du LLM).
+    """
+    low = instruct.lower()
+    if any(kw in low for kw in _ENERGY_KEYWORDS):
+        return instruct
+    return f"{instruct} {TIKTOK_ENERGY_SUFFIX}"
+
+
+def _ensure_french_accent(instruct: str) -> str:
+    """Garantit que l'instruct impose un accent français natif et authentique.
+
+    Sans mention d'accent, le modèle peut produire un accent anglophone
+    dérangeant pour l'audience française.
+    """
+    low = instruct.lower()
+    if any(kw in low for kw in _ACCENT_KEYWORDS):
+        return instruct
+    return f"{instruct} {FRENCH_ACCENT_SUFFIX}"
 
 
 class LLMService:
@@ -231,7 +323,69 @@ class LLMService:
             [{"role": "system", "content": VOICE_DESIGN_PROMPT}, {"role": "user", "content": user}],
             temperature=0.9,
         )
-        return _parse_voice_design_json(raw)
+        result = _parse_voice_design_json(raw)
+
+        # --- Garde-fou 1 : durée ------------------------------------------------
+        # Le LLM sous-produit souvent les mots (~35% de moins que la cible).
+        # Si le script est trop court pour la durée demandée, on demande une
+        # rallonge (jusqu'à 2 tentatives) sans changer l'histoire.
+        target_words = int(round(duration_s * 2.4))  # ~2,4 mots/s à l'oral
+        min_ok = int(target_words * 0.85)
+        for attempt in range(2):
+            if _count_words(result["script"]) >= min_ok:
+                break
+            result["script"] = await self._lengthen_script(result["script"], target_words)
+            logger.info(
+                "Voice Design : script trop court (%.0fs) — rallonge n°%d (%d mots)",
+                duration_s, attempt + 1, _count_words(result["script"]),
+            )
+
+        # --- Garde-fou 2 : énergie TikTok + accent français obligatoires --------
+        result["instruct"] = _ensure_energy(result["instruct"])
+        result["instruct"] = _ensure_french_accent(result["instruct"])
+
+        # --- Garde-fou 3 : script sans ponctuation -------------------------------
+        # Les virgules/points génèrent des pauses et des blancs non voulus dans la
+        # voix finale (le modèle VoiceDesign gère la prosodie via l'instruct).
+        result["script"] = _strip_punctuation(result["script"])
+
+        # --- Garde-fou 3 : params dans la plage naturelle (anti-épique) ----------
+        # On borne temperature/subtalker pour éviter la prosodie théâtrale.
+        params = result.get("params") or {}
+        params["temperature"] = min(
+            max(float(params.get("temperature", NATURAL_TEMPERATURE)), MIN_TEMPERATURE),
+            MAX_TEMPERATURE,
+        )
+        params["subtalker_temperature"] = min(
+            max(float(params.get("subtalker_temperature", NATURAL_SUBTALKER_TEMPERATURE)), MIN_SUBTALKER_TEMPERATURE),
+            MAX_SUBTALKER_TEMPERATURE,
+        )
+        params.setdefault("top_p", 0.9)
+        params["top_p"] = min(float(params["top_p"]), 0.95)
+        params.setdefault("top_k", 40)
+        params["top_k"] = int(min(float(params["top_k"]), 60))
+        params.setdefault("repetition_penalty", 1.05)
+        params.setdefault("subtalker_top_p", 0.9)
+        params["subtalker_top_p"] = min(float(params["subtalker_top_p"]), 0.95)
+        params.setdefault("subtalker_top_k", 40)
+        params["subtalker_top_k"] = int(min(float(params["subtalker_top_k"]), 60))
+        result["params"] = params
+
+        return result
+
+    async def _lengthen_script(self, script: str, target_words: int) -> str:
+        """Allonge un script jusqu'à ~target_words mots (même histoire, même style)."""
+        user = (
+            f"Voici un script TikTok :\n\n{script}\n\n"
+            f"Ce script est trop court : il doit atteindre environ {target_words} mots "
+            "pour durer la durée cible à l'oral. Allonge-le pour atteindre ce nombre "
+            "de mots en enrichissant le développement (détails sensoriels, actions, "
+            "micro-rebondissements). Renvoie UNIQUEMENT le script allongé."
+        )
+        return await self._chat(
+            [{"role": "system", "content": LENGTHEN_SCRIPT_PROMPT}, {"role": "user", "content": user}],
+            temperature=0.8,
+        )
 
 
 def _parse_voice_design_json(raw: str) -> dict:

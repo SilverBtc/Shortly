@@ -26,14 +26,14 @@ QWEN_TIMEOUT_S = 60 * 30  # génération CPU lente : 30 min max
 _cache_available: Optional[bool] = None
 
 # Voix Shortly (backend/data/voices/<nom>.mp3) → instruct descriptif envoyé au
-# daemon Qwen VoiceDesign.
+# daemon Qwen VoiceDesign. Chaque instruct impose un accent français natif.
 SHORTLY_INSTRUCTS: dict[str, str] = {
-    "antoine": "voix masculine française grave et posée, débit calme, ton documentaire",
-    "hugo": "voix masculine française jeune et énergique, rythme rapide, ton YouTube",
-    "marie": "voix féminine française chaleureuse et claire, articulation nette, ton amical",
-    "maxime": "voix masculine française dynamique, articulation punchy, ton motivant",
-    "nicolas": "voix masculine française neutre et professionnelle, diction précise, ton journaliste",
-    "paul": "voix masculine française douce et posée, débit lent, ton narrateur",
+    "antoine": "voix masculine française grave et posée, accent français natif, débit calme, ton documentaire",
+    "hugo": "voix masculine française jeune et énergique, accent français natif, rythme rapide, ton YouTube",
+    "marie": "voix féminine française chaleureuse et claire, accent français natif, articulation nette, ton amical",
+    "maxime": "voix masculine française dynamique, accent français natif, articulation punchy, ton motivant",
+    "nicolas": "voix masculine française neutre et professionnelle, accent français natif, diction précise, ton journaliste",
+    "paul": "voix masculine française douce et posée, accent français natif, débit lent, ton narrateur",
 }
 
 # Langues acceptées par Qwen3-TTS VoiceDesign.
