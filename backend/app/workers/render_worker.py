@@ -40,110 +40,22 @@ logger = logging.getLogger(__name__)
 
 MIN_VIDEO_SECONDS = 55.0  # sous ce seuil, on considère le script trop court
 
+# Presets de sous-titres : couleur du mot en cours (style TikTok officiel —
+# le reste : police 110px auto-fit, contour noir 20px, spring, est géré par
+# la composition Remotion copiée sur remotion-dev/template-tiktok).
 SUBTITLE_PRESETS = {
-    "classic": {
-        "activeColor": "#FFD400",
-        "inactiveColor": "#FFFFFF",
-        "highlightColor": "#3B82F6",
-        "fontSize": 64,
-        "strokeWidth": 6,
-    },
-    "bold": {
-        "activeColor": "#FFD400",
-        "inactiveColor": "#FFFFFF",
-        "highlightColor": "#EF4444",
-        "fontSize": 74,
-        "strokeWidth": 9,
-    },
-    "neon": {
-        "activeColor": "#00FFCC",
-        "inactiveColor": "#FFFFFF",
-        "highlightColor": "#FF00FF",
-        "fontSize": 60,
-        "strokeWidth": 6,
-    },
-    # Presets Wizard (mission) : Bleu & Blanc / Jaune & Blanc / Vert flashy
-    "blue-white": {
-        "activeColor": "#3B82F6",
-        "inactiveColor": "#FFFFFF",
-        "highlightColor": "#FFD400",
-        "fontSize": 66,
-        "strokeWidth": 7,
-    },
-    "yellow-white": {
-        "activeColor": "#FFD400",
-        "inactiveColor": "#FFFFFF",
-        "highlightColor": "#3B82F6",
-        "fontSize": 66,
-        "strokeWidth": 7,
-    },
-    "green-flashy": {
-        "activeColor": "#00FF88",
-        "inactiveColor": "#FFFFFF",
-        "highlightColor": "#FF00FF",
-        "fontSize": 66,
-        "strokeWidth": 7,
-    },
+    "classic": {"highlightColor": "#FFE014"},
+    "bold": {"highlightColor": "#FF3B3B"},
+    "neon": {"highlightColor": "#00FFCC"},
+    # Presets Wizard : Bleu & Blanc / Jaune & Blanc / Vert flashy
+    "blue-white": {"highlightColor": "#2F80FF"},
+    "yellow-white": {"highlightColor": "#FFE014"},
+    "green-flashy": {"highlightColor": "#00FF87"},
 }
-
-# Mots déclencheurs -> emoji synchronisé (sous-titres dynamiques)
-EMOJI_TRIGGERS: list[tuple[str, str]] = [
-    ("horreur", "💀"),
-    ("peur", "😱"),
-    ("panique", "😱"),
-    ("argent", "💰"),
-    ("payer", "💸"),
-    ("client", "🤦"),
-    ("cliente", "🤦"),
-    ("bizarre", "🤨"),
-    ("incroyable", "🤯"),
-    ("propre", "✨"),
-    ("sale", "🦠"),
-    ("coupe", "✂️"),
-    ("cheveux", "💇"),
-    ("nettoy", "🧼"),
-    ("cuisine", "🍳"),
-    ("secret", "🤫"),
-    ("jamais", "🚫"),
-    ("dernière", "😤"),
-    ("maison", "🏠"),
-    ("appart", "🏠"),
-    ("trouvé", "🔍"),
-    ("découvre", "🔍"),
-    ("cache", "🕵️"),
-    ("vérité", "🤯"),
-    ("premier", "🥇"),
-    ("attention", "⚠️"),
-    ("danger", "⚠️"),
-    ("cauchemar", "😵"),
-    ("incendie", "🔥"),
-    ("feu", "🔥"),
-]
-
-MAX_EMOJIS = 6
-
 
 def _slugify(text: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
     return slug[:40] or "video"
-
-
-def assign_emojis(words: list[dict]) -> list[dict]:
-    """Associe des emojis aux mots déclencheurs (max MAX_EMOJIS)."""
-    emojis: list[dict] = []
-    used: set[str] = set()
-    for idx, word in enumerate(words):
-        lowered = word.get("word", "").lower()
-        for trigger, emoji in EMOJI_TRIGGERS:
-            if emoji in used:
-                continue
-            if trigger in lowered:
-                emojis.append({"afterIndex": idx, "emoji": emoji})
-                used.add(emoji)
-                break
-        if len(emojis) >= MAX_EMOJIS:
-            break
-    return emojis
 
 
 async def prepare_project_media(
@@ -306,18 +218,12 @@ async def build_render_props(
         "fps": 30,
         "width": 1080,
         "height": 1920,
-        "banner": {
-            "text": (project.banner_text or project.title).upper(),
-            "showFirstSeconds": 3,
-        },
+        # Pas de bandeau titre : la vidéo finale n'affiche que les sous-titres
         "captions": {
             "words": words or [],
             **preset,
-            "fontFamily": "Montserrat",
-            "fontWeight": 800,
-            "emojis": assign_emojis(words or []),
-            "animation": project.subtitle_animation or "word",
-            "boxEnabled": bool(project.box_enabled),
+            # Rythme choisi au wizard : 1 mot (word) ou 3 mots (phrase) par page
+            "wordsPerPage": 1 if project.subtitle_animation == "word" else 3,
         },
         "clips": clips,
         "maskArea": mask_area,

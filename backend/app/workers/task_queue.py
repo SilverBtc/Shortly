@@ -7,9 +7,12 @@ _worker_loop par l'exécuteur ARQ — le contrat de enqueue() reste identique.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import time
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +22,44 @@ def _now() -> str:
 
 
 class JobStore:
-    """Registre en mémoire des jobs (statut + résultat)."""
+    """Registre des jobs persisté sur disque (backend/data/jobs.json).
 
-    def __init__(self) -> None:
-        self._jobs: dict[str, dict] = {}
+    Les jobs survivent aux redémarrages du backend — le polling du frontend
+    ne tombe plus sur un 404 après un restart.
+    """
+
+    MAX_AGE_S = 24 * 3600
+
+    def __init__(self, path: str | Path | None = None) -> None:
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        self._path = Path(path or (settings.data_dir / "jobs.json"))
+        self._jobs: dict[str, dict] = self._load()
+
+    def _load(self) -> dict[str, dict]:
+        if not self._path.exists():
+            return {}
+        try:
+            data = json.loads(self._path.read_text(encoding="utf-8"))
+            now = time.time()
+            return {
+                k: v
+                for k, v in data.items()
+                if now - _job_ts(v) < self.MAX_AGE_S
+            }
+        except Exception:
+            logger.warning("jobs.json illisible — registre vide", exc_info=True)
+            return {}
+
+    def _persist(self) -> None:
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self._path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(self._jobs, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(self._path)
+        except Exception:
+            logger.warning("Échec persistance jobs", exc_info=True)
 
     def create(self, kind: str) -> str:
         job_id = uuid.uuid4().hex[:12]
@@ -35,6 +72,7 @@ class JobStore:
             "created_at": _now(),
             "updated_at": _now(),
         }
+        self._persist()
         return job_id
 
     def set_status(self, job_id: str, status: str, **extra) -> None:
@@ -43,6 +81,7 @@ class JobStore:
             return
         job.update({"status": status, "updated_at": _now()})
         job.update(extra)
+        self._persist()
 
     def get(self, job_id: str) -> dict | None:
         job = self._jobs.get(job_id)
@@ -50,6 +89,15 @@ class JobStore:
 
     def list(self) -> list[dict]:
         return [dict(j) for j in self._jobs.values()]
+
+
+def _job_ts(job: dict) -> float:
+    """Timestamp (epoch) du job pour la purge."""
+    raw = job.get("updated_at") or job.get("created_at") or ""
+    try:
+        return datetime.fromisoformat(raw).timestamp()
+    except Exception:
+        return 0.0
 
 
 _store = JobStore()
