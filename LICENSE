@@ -1,0 +1,27 @@
+# LICENCE — TikTok Studio
+
+Ce projet est mis à disposition sous la licence **Creative Commons
+Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**.
+
+## Résumé
+
+- **Vous pouvez** : partager (copier, redistribuer) et adapter (modifier,
+  transformer, créer à partir du code) pour tout usage **non commercial**,
+  à condition de créditer l'auteur original.
+- **Vous ne pouvez pas** : utiliser ce logiciel à des **fins commerciales**
+  (monétisation de contenu créé avec, revente, intégration dans un produit
+  commercial, etc.) sans obtenir une licence commerciale payante auprès de
+  l'auteur.
+- **Pas de garantie** : le logiciel est fourni « en l'état », sans aucune
+  garantie.
+
+## Texte officiel
+
+https://creativecommons.org/licenses/by-nc/4.0/deed.fr
+
+## Dépendances tierces
+
+Ce projet intègre des composants sous licences tierces, notamment
+**[Qwen3-TTS](https://github.com/Qwen/Qwen3-TTS)** (Apache-2.0, © Alibaba),
+dont les conditions respectives s'appliquent indépendamment de la présente
+licence.

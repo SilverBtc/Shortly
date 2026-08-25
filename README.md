@@ -1,122 +1,171 @@
-# TikTok Studio — Installation locale (Qwen3-TTS, voix design)
+# 🎬 TikTok Studio
 
-Machine cible : **i5-14400 / 32 Go RAM / RX 9070 XT** (Linux ou WSL2 recommandé).
-Le daemon vocal Qwen3-TTS tourne en **100 % local**.
+Génération de vidéos courtes (TikTok/Shorts) **100 % locale** : import de liens, script IA,
+voix de synthèse Qwen3-TTS (voice design / clonage), rendu vidéo Remotion.
 
-> ✅ **Setup Windows + WSL2 validé**.
-> Le GPU AMD est utilisable via ROCm/WSL (`qwenTTS/start_voicedesign_gpu.sh`) ;
-> sinon le daemon tourne en **CPU float32** (`--device cpu --dtype float32`).
-
----
-
-## 1. Prérequis
-
-- **Linux** (natif) ou **WSL2** (Windows) — le ROCm AMD ne marche pas en Windows natif
-- **Python 3.12** (`python3 --version`)
-- **Node 20+** + **pnpm** (`corepack enable && corepack prepare pnpm@latest --activate`)
-- **Git**, **ffmpeg**
+Le daemon vocal **Qwen3-TTS** tourne sur votre **GPU AMD (ROCm)** ou en CPU de secours.
+Aucun appel à un service cloud : tout passe par **Ollama** (LLM) et **Qwen3-TTS** (voix).
 
 ---
 
-## 2. Modèles Qwen3-TTS (~4 Go)
+## 🏗️ Architecture — 3 services
 
-Les modèles se téléchargent automatiquement depuis Hugging Face au premier
-démarrage du daemon (`Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign`).
+| Service | Techno | Port | Rôle |
+|---|---|---|---|
+| **Daemon TTS** | Qwen3-TTS (1.7B VoiceDesign) | `7863` | Synthèse vocale (GPU AMD ROCm) |
+| **Backend API** | FastAPI + SQLite | `8000` | Orchestration, LLM, scraping, rendu |
+| **Frontend** | Next.js 15 + Remotion | `3000` | Wizard de création (`/wizard`) |
 
-Copie optionnelle du cache HF Windows → WSL (ext4 = chargement plus rapide) :
-
-```bash
-./scripts/copy_qwen_models.sh
+```
+Frontend (3000) ──▶ Backend (8000) ──▶ Daemon Qwen3-TTS (7863) ──▶ GPU AMD (ROCm)
+                        │
+                        └──▶ Ollama (11434) : script IA
 ```
 
 ---
 
-## 3. Daemon Qwen3-TTS (voix design) — port 7863
+## 📋 Prérequis
+
+| Outil | Version | Notes |
+|---|---|---|
+| **Linux ou WSL2** | — | Le ROCm AMD ne fonctionne pas en Windows natif |
+| **Python** | 3.10 – 3.13 | Testé avec 3.12 (WSL) |
+| **Node.js** | 20+ | + pnpm (`corepack enable`) |
+| **Git** | — | |
+| **ffmpeg** | — | Pour le traitement audio/vidéo |
+| **Ollama** | optionnel | LLM local (`ollama pull qwen2.5:7b`) pour le script IA |
+
+> 💡 **GPU AMD** : installez le runtime **ROCm** dans WSL (voir [GPU AMD](#-gpu-amd-rocm)).
+
+---
+
+## 🚀 Quick start
 
 ```bash
-cd tiktok-studio-local/qwenTTS
+# 1️⃣ Daemon TTS (WSL/Linux) — installation automatique (~4 Go, 1 fois)
+cd qwenTTS
+./setup.sh          # détecte ROCm → GPU, sinon CPU
 
-python -m venv qwen_env && source qwen_env/bin/activate
+# 2️⃣ Backend (WSL/Linux)
+cd ../backend
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp ../.env.example .env   # valeurs par défaut locales
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-# GPU AMD (RX 9070 XT) — ROCm :
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/rocm7.2
-
-# CPU pur (fallback, lent) :
-#   pip install torch torchaudio
-
-pip install transformers==5.15.1 accelerate fastapi uvicorn numpy soundfile httpx
-pip install -e ./Qwen3-TTS   # paquet qwen_tts (editable)
+# 3️⃣ Frontend (n'importe où)
+cd ../frontend
+pnpm install
+pnpm dev
 ```
 
-Démarrage :
+Puis ouvrez **http://localhost:3000/wizard** 🎉
+
+> ⚠️ **Ordre** : attendez `[qwen_server] Modèle prêt` (1–2 min au 1er démarrage, téléchargement
+> du modèle ~4 Go) avant de générer des voix depuis l'UI.
+
+---
+
+## 🔧 Installation détaillée
+
+### 1. Daemon TTS (`qwenTTS/`) — port 7863
 
 ```bash
-# GPU (recommandé) :
-./start_voicedesign_gpu.sh
-
-# CPU :
-qwen_env/bin/python qwen_server.py --device cpu --dtype float32 --port 7863
+cd qwenTTS
+./setup.sh          # ou ./setup.sh --gpu / --cpu pour forcer
 ```
 
-Attente : **~2 min** de chargement (log `[qwen_server] Modèle prêt`).
+Le script `setup.sh` :
+1. crée le venv `qwenTTS/venv`,
+2. installe **PyTorch ROCm** depuis l'index dédié PyTorch (GPU AMD) — ou PyTorch CPU sinon,
+3. installe les dépendances + le paquet local `qwen_tts` (clone auto du dépôt Qwen officiel si absent),
+4. vérifie `torch.cuda.is_available()`.
 
-Vérif :
+Lancement :
+
+```bash
+venv/bin/python qwen_server.py
+# Forcer un device : --device cuda --dtype bfloat16  ou  --device cpu --dtype float32
+```
+
+Vérification :
+
 ```bash
 curl http://127.0.0.1:7863/health
-# {"status":"ok","model_loaded":true,"sample_rate":24000,...}
+# {"status":"ok","model_loaded":true,"device":"cuda:0",...}
 ```
 
-> Les voix Shortly (`backend/data/voices/*.mp3`) sont jouées en pré-écoute dans
-> l'UI ; au rendu, chaque voix mappe vers un **instruct descriptif** envoyé au
-> daemon VoiceDesign (`SHORTLY_INSTRUCTS` dans `backend/app/services/qwen_tts_service.py`).
-
----
-
-## 4. Backend API — port 8000
+### 2. Backend (`backend/`) — port 8000
 
 ```bash
-cd tiktok-studio-local/backend
-python -m venv .venv && source .venv/bin/activate
+cd backend
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-
-export TIKTOK_CORS_ORIGINS='["http://localhost:3000","http://127.0.0.1:3000"]'
-export TIKTOK_PUBLIC_BASE_URL='http://127.0.0.1:8000'
+cp ../.env.example .env
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Le backend appelle le daemon Qwen sur `http://127.0.0.1:7863`
-(`backend/app/services/qwen_tts_service.py`).
+> Le venv backend est **Linux** (WSL) : activez-le dans WSL (`source venv/bin/activate`), jamais dans PowerShell Windows (`venv/Scripts/Activate.ps1` n'existe pas ici).
 
----
-
-## 5. Frontend — port 3000
+### 3. Frontend (`frontend/`) — port 3000
 
 ```bash
-cd tiktok-studio-local/frontend
+cd frontend
 pnpm install
-NEXT_PUBLIC_API_URL='http://127.0.0.1:8000' pnpm exec next dev -H 0.0.0.0 -p 3000
+pnpm dev            # → http://localhost:3000
 ```
 
-Ouvrir **http://localhost:3000** → Wizard `/wizard` (import de liens → hook →
-réglages → script IA → rendu + voix Shortly).
+---
+
+## 🎮 GPU AMD (ROCm)
+
+PyTorch ROCm est installé **exclusivement** depuis l'index dédié
+(`--index-url https://download.pytorch.org/whl/rocm7.2`) — ne pas utiliser
+`--extra-index-url`, qui résout vers le wheel CUDA/NVIDIA de PyPI et ignore le GPU AMD.
+
+| Point | Détail |
+|---|---|
+| Wheel | `torch==2.13.0+rocm7.2`, `torchaudio==2.11.0+rocm7.2` |
+| Compatibilité | RX 9070 XT (RDNA4) validée — WSL2 |
+| `LD_PRELOAD` | posé automatiquement par `qwen_server.py` (`libhsa-runtime64.so`) |
+| Vérification | `venv/bin/python -c "import torch; print(torch.cuda.is_available())"` → `True` |
+| Sans GPU | `./setup.sh --cpu` — fonctionne, mais **lent** (GPU fortement recommandé) |
 
 ---
 
-## 6. Ordre de lancement
+## 🛠️ Dépannage
 
-1. **Daemon Qwen TTS** (2 min de chargement) → `qwenTTS/start_voicedesign_gpu.sh`
-2. **Backend** → `uvicorn app.main:app --port 8000`
-3. **Frontend** → `pnpm exec next dev -p 3000`
-
-Scripts tout-en-un : `start_all.bat` (Windows) ou `scripts/run_all.sh` (WSL/Linux).
+| Problème | Solution |
+|---|---|
+| `No matching distribution found for torch==2.13.0+rocm7.2` | Installez via l'index ROCm **exclusif** : `pip install torch torchaudio --index-url https://download.pytorch.org/whl/rocm7.2` |
+| `torch.cuda.is_available()` → `False` sur GPU AMD | ROCm absent de WSL : `wsl --update`, puis installez le runtime ROCm ; vérifiez `/opt/rocm/lib/libhsa-runtime64.so` |
+| Génération très lente | Le modèle est en CPU : relancez avec `--device cuda --dtype bfloat16` |
+| `[qwen_server]` muet pendant 2 min | Normal : chargement du modèle au 1er lancement (téléchargement ~4 Go) |
+| Voix robotiques / erreur 500 sur `/generate` | Vérifiez le message d'erreur ; le daemon doit être prêt (`model_loaded: true`) |
 
 ---
 
-## Notes GPU AMD (RX 9070 XT / RDNA4)
+## 🗂️ Structure
 
-- ROCm officiel PyTorch : `pip install torch --index-url https://download.pytorch.org/whl/rocm7.2`
-- Sous WSL, `LD_PRELOAD=/opt/rocm/lib/libhsa-runtime64.so` est obligatoire
-  (la lib HSA du wheel torch ne supporte pas dxg ; géré par `start_voicedesign_gpu.sh`).
-- Vérif : `python -c "import torch; print(torch.cuda.is_available())"` → `True`.
-- Sans ROCm, le daemon tourne en CPU : **lent** (plusieurs min pour quelques
-  secondes d'audio) — le GPU est fortement recommandé.
+```
+tiktok-studio-local/
+├── qwenTTS/            # Daemon Qwen3-TTS (voice design) — venv + serveur
+│   ├── qwen_server.py  # API FastAPI /generate + /health
+│   ├── setup.sh        # Installation auto (GPU ROCm / CPU)
+│   └── demo_dynamic.py # Démos : voice clone (7861), custom voice (7862)
+├── backend/            # API FastAPI (scraping, LLM, TTS, rendu, workers)
+└── frontend/           # Next.js 15 + Remotion (wizard /wizard)
+```
+
+---
+
+## 📄 Licence
+
+Ce projet est sous **Creative Commons Attribution-NonCommercial 4.0 (CC BY-NC 4.0)** :
+
+- ✅ **Gratuit** pour un usage personnel / non commercial (partage, modification, crédit à l'auteur)
+- 💰 **Payant** pour tout usage commercial (monétisation de contenu créé avec le logiciel, revente, intégration dans un produit commercial…) — licence commerciale à obtenir auprès de l'auteur
+
+Voir [`LICENSE`](LICENSE) — [Texte officiel CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.fr)
+
+> Ce projet intègre [Qwen3-TTS](https://github.com/Qwen/Qwen3-TTS) (Apache-2.0, © Alibaba) dont les conditions s'appliquent indépendamment.
