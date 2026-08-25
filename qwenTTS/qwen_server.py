@@ -13,22 +13,60 @@ Endpoints :
   Sémaphore 1 : une génération à la fois.
 
 Usage :
-  python qwen_server.py --port 7863 [--model Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign]
-  # CPU recommandé ici : --device cpu --dtype float32 --no-flash-attn
+  python qwen_server.py [--port 7863]   # device/dtype auto-détectés (GPU si dispo)
+  # Forcer : --device cuda --dtype bfloat16  ou  --device cpu --dtype float32
 """
 from __future__ import annotations
 
 import argparse
+import os
+import re
+import sys
 import threading
 import time
 import uuid
 from pathlib import Path
 
+
+def _ensure_rocm_preload() -> None:
+    """WSL/ROCm : la lib HSA embarquée du wheel torch ne supporte pas dxg ;
+    celle d'/opt/rocm si. Sans elle torch.cuda.is_available() = False.
+    LD_PRELOAD doit être lu par le loader au lancement du processus : si absent,
+    le processus se ré-exécute une fois avec la bonne valeur."""
+    if sys.platform != "linux":
+        return
+    lib = "/opt/rocm/lib/libhsa-runtime64.so"
+    if not Path(lib).exists():
+        return
+    current = os.environ.get("LD_PRELOAD", "")
+    if lib in current.split(":"):
+        return
+    os.environ["LD_PRELOAD"] = f"{lib}:{current}" if current else lib
+    os.execve(sys.executable, [sys.executable, *sys.argv], os.environ)
+
+
+_ensure_rocm_preload()
 import numpy as np
 import soundfile as sf
 import torch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+
+
+def _strip_punctuation(text: str) -> str:
+    """Retire la ponctuation d'un texte TTS — source de pauses/blancs non voulus.
+
+    Le modèle VoiceDesign gère la prosodie via l'instruct, pas via la
+    ponctuation. On garde les apostrophes (j'ai) et traits d'union (peut-être)
+    qui font partie des mots français.
+    """
+    text = text.replace("’", "'")
+    text = re.sub(r"[.,;:!?…«»“”\"()\[\]{}–—]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\s+'\s*", "'", text)
+    text = re.sub(r"\s*'\s+", "'", text)
+    text = re.sub(r"\s*-\s*", "-", text)
+    return text
 
 OUT_DIR = Path(__file__).resolve().parent / "out"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -107,7 +145,7 @@ async def generate(req: GenerateRequest) -> dict:
     try:
         t0 = time.time()
         wavs, sr = _model.generate_voice_design(
-            text=req.text.strip(),
+            text=_strip_punctuation(req.text.strip()),
             language=req.language or "Auto",
             instruct=req.instruct.strip(),
             temperature=req.temperature,
@@ -141,14 +179,19 @@ async def generate(req: GenerateRequest) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Qwen3-TTS VoiceDesign daemon")
     parser.add_argument("--model", default="Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign")
-    parser.add_argument("--device", default="cpu")
-    parser.add_argument("--dtype", default="float32", choices=["float32", "bfloat16"])
+    parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"])
+    parser.add_argument("--dtype", default="auto", choices=["auto", "float32", "bfloat16"])
     parser.add_argument("--flash-attn", action="store_true")
     parser.add_argument("--no-flash-attn", action="store_true",
                         help="Compatibilité avec demo_dynamic.py (défaut : pas de flash attention)")
     parser.add_argument("--ip", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=7863)
     args = parser.parse_args()
+    if args.device == "auto":
+        args.device = "cuda" if torch.cuda.is_available() else "cpu"
+    if args.dtype == "auto":
+        args.dtype = "bfloat16" if args.device == "cuda" else "float32"
+    print(f"[qwen_server] device={args.device} dtype={args.dtype}")
 
     import uvicorn
 
