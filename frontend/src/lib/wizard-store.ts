@@ -5,17 +5,13 @@
  * /wizard/step-1-links … step-5-render.
  */
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type { WizardLinkItem, WizardMaskArea } from "./api-contract";
 
 export const SUBTITLE_PRESETS = [
-  { id: "blue-white", label: "Bleu & Blanc", active: "#3B82F6" },
-  { id: "yellow-white", label: "Jaune & Blanc", active: "#FFD400" },
-  { id: "green-flashy", label: "Vert flashy", active: "#00FF88" },
-] as const;
-
-export const SUBTITLE_ANIMATIONS = [
-  { id: "word", label: "Mot par mot", desc: "Style Hormozi / MrBeast" },
-  { id: "phrase", label: "Phrase par phrase", desc: "Plus posé, lecture facile" },
+  { id: "blue-white", label: "Bleu & Blanc", active: "#2F80FF" },
+  { id: "yellow-white", label: "Jaune & Blanc", active: "#FFE014" },
+  { id: "green-flashy", label: "Vert flashy", active: "#00FF87" },
 ] as const;
 
 export const VOICE_SAMPLE =
@@ -42,10 +38,9 @@ interface WizardState {
   setVoice: (id: string) => void;
   subtitlePreset: string;
   setSubtitlePreset: (id: string) => void;
-  subtitleAnimation: "word" | "phrase";
-  setSubtitleAnimation: (a: "word" | "phrase") => void;
-  boxEnabled: boolean;
-  setBoxEnabled: (b: boolean) => void;
+  /** Rythme des sous-titres : 1 mot ou 3 mots par page */
+  subtitleSpeed: "1" | "3";
+  setSubtitleSpeed: (s: "1" | "3") => void;
   mask: WizardMaskArea;
   setMask: (m: WizardMaskArea) => void;
   musicPath: string | null;
@@ -56,7 +51,7 @@ interface WizardState {
   // Étape 5
   projectId: number | null;
   renderJobId: string | null;
-  setRenderResult: (projectId: number, jobId: string) => void;
+  setRenderResult: (projectId: number | null, jobId: string | null) => void;
   reset: () => void;
 }
 
@@ -65,8 +60,7 @@ const initial = {
   hookId: null,
   voiceId: "shortly:antoine",
   subtitlePreset: "yellow-white",
-  subtitleAnimation: "word" as const,
-  boxEnabled: false,
+  subtitleSpeed: "3" as const,
   mask: DEFAULT_MASK,
   musicPath: null,
   script: "",
@@ -74,17 +68,25 @@ const initial = {
   renderJobId: null,
 };
 
-export const useWizardStore = create<WizardState>((set) => ({
-  ...initial,
-  setLinks: (items) => set({ links: items }),
-  setHook: (id) => set({ hookId: id }),
-  setVoice: (voiceId) => set({ voiceId }),
-  setSubtitlePreset: (subtitlePreset) => set({ subtitlePreset }),
-  setSubtitleAnimation: (subtitleAnimation) => set({ subtitleAnimation }),
-  setBoxEnabled: (boxEnabled) => set({ boxEnabled }),
-  setMask: (mask) => set({ mask }),
-  setMusicPath: (musicPath) => set({ musicPath }),
-  setScript: (script) => set({ script }),
-  setRenderResult: (projectId, renderJobId) => set({ projectId, renderJobId }),
-  reset: () => set({ ...initial }),
-}));
+export const useWizardStore = create<WizardState>()(
+  persist(
+    (set) => ({
+      ...initial,
+      setLinks: (items) => set({ links: items }),
+      setHook: (id) => set({ hookId: id }),
+      setVoice: (voiceId) => set({ voiceId }),
+      setSubtitlePreset: (subtitlePreset) => set({ subtitlePreset }),
+      setSubtitleSpeed: (subtitleSpeed) => set({ subtitleSpeed }),
+      setMask: (mask) => set({ mask }),
+      setMusicPath: (musicPath) => set({ musicPath }),
+      setScript: (script) => set({ script }),
+      setRenderResult: (projectId, renderJobId) => set({ projectId, renderJobId }),
+      reset: () => set({ ...initial }),
+    }),
+    {
+      name: "wizard-store",
+      // Survit aux refresh : musique/presets/script ne sont plus perdus au rendu
+      storage: createJSONStorage(() => localStorage),
+    }
+  )
+);

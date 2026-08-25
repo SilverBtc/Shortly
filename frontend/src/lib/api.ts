@@ -197,18 +197,14 @@ export function projectToPreviewProps(
 ) {
   return {
     audioPath,
-    musicPath: null,
+    musicPath: project.music_path ? musicAudioUrl(project.music_path.split(/[\\/]/).pop() ?? "") : null,
     durationSeconds,
     fps: 30,
     width: 1080,
     height: 1920,
-    banner: { text: (project.banner_text || project.title).toUpperCase(), showFirstSeconds: 3 },
     captions: {
       words: timestamps,
-      ...presetFor(project.subtitle_preset),
-      fontFamily: "Montserrat",
-      fontWeight: 800,
-      emojis: assignPreviewEmojis(timestamps),
+      highlightColor: presetFor(project.subtitle_preset),
     },
     clips: assets.map((link, idx) => ({
       path: link.asset.file_path,
@@ -220,38 +216,15 @@ export function projectToPreviewProps(
   };
 }
 
-const PRESETS: Record<string, { activeColor: string; inactiveColor: string; highlightColor: string; fontSize: number; strokeWidth: number }> = {
-  classic: { activeColor: "#FFD400", inactiveColor: "#FFFFFF", highlightColor: "#3B82F6", fontSize: 64, strokeWidth: 6 },
-  bold: { activeColor: "#FFD400", inactiveColor: "#FFFFFF", highlightColor: "#EF4444", fontSize: 74, strokeWidth: 9 },
-  neon: { activeColor: "#00FFCC", inactiveColor: "#FFFFFF", highlightColor: "#FF00FF", fontSize: 60, strokeWidth: 6 },
+const PRESETS: Record<string, string> = {
+  classic: "#FFE014",
+  bold: "#FF3B3B",
+  neon: "#00FFCC",
+  "blue-white": "#2F80FF",
+  "yellow-white": "#FFE014",
+  "green-flashy": "#00FF87",
 };
 
 function presetFor(name: string) {
   return PRESETS[name] ?? PRESETS.classic;
-}
-
-const TRIGGERS: Array<[string, string]> = [
-  ["horreur", "💀"], ["peur", "😱"], ["argent", "💰"], ["payer", "💸"], ["client", "🤦"],
-  ["bizarre", "🤨"], ["incroyable", "🤯"], ["propre", "✨"], ["sale", "🦠"], ["coupe", "✂️"],
-  ["cheveux", "💇"], ["nettoy", "🧼"], ["cuisine", "🍳"], ["secret", "🤫"], ["jamais", "🚫"],
-  ["dernière", "😤"], ["maison", "🏠"], ["appart", "🏠"], ["trouvé", "🔍"], ["découvre", "🔍"],
-  ["cache", "🕵️"], ["vérité", "🤯"], ["attention", "⚠️"], ["danger", "⚠️"], ["cauchemar", "😵"],
-  ["incendie", "🔥"], ["feu", "🔥"],
-];
-
-function assignPreviewEmojis(words: WordTimestamp[]) {
-  const emojis: Array<{ afterIndex: number; emoji: string }> = [];
-  const used = new Set<string>();
-  for (let i = 0; i < words.length && emojis.length < 6; i++) {
-    const w = words[i].word.toLowerCase();
-    for (const [trigger, emoji] of TRIGGERS) {
-      if (used.has(emoji)) continue;
-      if (w.includes(trigger)) {
-        emojis.push({ afterIndex: i, emoji });
-        used.add(emoji);
-        break;
-      }
-    }
-  }
-  return emojis;
 }

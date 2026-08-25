@@ -23,14 +23,7 @@ export const RemotionRoot: React.FC = () => {
           banner: { text: "BANNIÈRE", showFirstSeconds: 3 },
           captions: {
             words: [{ word: "…", start: 0, end: 1 }],
-            activeColor: "#FFD400",
-            inactiveColor: "#FFFFFF",
-            highlightColor: "#3B82F6",
-            fontFamily: "Montserrat",
-            fontWeight: 800,
-            fontSize: 64,
-            strokeWidth: 6,
-            emojis: [],
+            highlightColor: "#FFE014",
           },
           clips: [],
         }}

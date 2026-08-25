@@ -177,13 +177,11 @@ export interface WizardRenderLink {
 
 export interface WizardRenderPayload {
   title: string;
-  banner_text?: string;
   niche?: string | null;
   script: string;
   voice_id: string;
   subtitle_preset: string;
-  subtitle_animation: "word" | "phrase";
-  box_enabled: boolean;
+  subtitle_animation?: "word" | "phrase";
   mask?: WizardMaskArea | null;
   music_path?: string | null;
   links: WizardRenderLink[];

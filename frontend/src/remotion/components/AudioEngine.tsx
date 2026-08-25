@@ -9,8 +9,8 @@ interface AudioEngineProps {
   fps?: number;
 }
 
-const MUSIC_DUCKED = 0.08; // -22 dB pendant la parole
-const MUSIC_NORMAL = 0.35;
+const MUSIC_DUCKED = 0.16; // -16 dB pendant la parole (présente mais discrète)
+const MUSIC_NORMAL = 0.5;
 
 /**
  * AudioEngine : voix off principale + musique d'ambiance en boucle.

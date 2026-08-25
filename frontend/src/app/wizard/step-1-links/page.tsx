@@ -38,6 +38,12 @@ function isSupportedUrl(value: string): boolean {
 export default function Step1LinksPage() {
   const router = useRouter();
   const { links, setLinks } = useWizardStore();
+
+  // Nouveau projet : on oublie tout rendu précédent (évite le polling 404
+  // d'un job mort resté dans le store persisté)
+  React.useEffect(() => {
+    useWizardStore.getState().setRenderResult(null, null);
+  }, []);
   const [urls, setUrls] = React.useState<string[]>([""]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);

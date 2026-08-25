@@ -15,6 +15,12 @@ export default function Step2HookPage() {
   const router = useRouter();
   const { links, hookId, setHook } = useWizardStore();
 
+  // Réutilisation de vidéos déjà importées : on oublie aussi le rendu
+  // précédent pour repartir proprement
+  React.useEffect(() => {
+    useWizardStore.getState().setRenderResult(null, null);
+  }, []);
+
   const readyLinks = links.filter((l) => !l.status.startsWith("error"));
   const selected = links.find((l) => l.id === hookId) ?? null;
 

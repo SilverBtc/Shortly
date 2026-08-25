@@ -71,7 +71,6 @@ export const ProjectEditorDialog: React.FC<ProjectEditorDialogProps> = ({ projec
 
   const [title, setTitle] = React.useState("");
   const [niche, setNiche] = React.useState("");
-  const [bannerText, setBannerText] = React.useState("");
   const [scriptRaw, setScriptRaw] = React.useState("");
   const [voiceId, setVoiceId] = React.useState("shortly:antoine");
   const [preset, setPreset] = React.useState("classic");
@@ -113,7 +112,6 @@ export const ProjectEditorDialog: React.FC<ProjectEditorDialogProps> = ({ projec
       const p = detail.item;
       setTitle(p.title);
       setNiche(p.niche ?? "");
-      setBannerText(p.banner_text);
       setScriptRaw(p.script_raw);
       setVoiceId(p.voice_id);
       setPreset(p.subtitle_preset);
@@ -132,7 +130,6 @@ export const ProjectEditorDialog: React.FC<ProjectEditorDialogProps> = ({ projec
     } else {
       setTitle("");
       setNiche("");
-      setBannerText("");
       setScriptRaw("");
       setVoiceId("shortly:antoine");
       setPreset("classic");
@@ -166,7 +163,6 @@ export const ProjectEditorDialog: React.FC<ProjectEditorDialogProps> = ({ projec
         const res = await api.updateProject(projectId, {
           title,
           niche: niche || null,
-          banner_text: bannerText,
           script_raw: scriptRaw,
           voice_id: voiceId,
           subtitle_preset: preset,
@@ -176,7 +172,6 @@ export const ProjectEditorDialog: React.FC<ProjectEditorDialogProps> = ({ projec
         const res = await api.createProject({
           title: title || "Projet sans titre",
           niche: niche || undefined,
-          banner_text: bannerText,
           script_raw: scriptRaw,
           voice_id: voiceId,
           subtitle_preset: preset,
@@ -279,13 +274,13 @@ export const ProjectEditorDialog: React.FC<ProjectEditorDialogProps> = ({ projec
   const previewProps = React.useMemo(() => {
     if (!savedProject || !audioPath || timestamps.length === 0) return null;
     return api.projectToPreviewProps(
-      { ...savedProject, script_raw: scriptRaw, banner_text: bannerText, subtitle_preset: preset },
+      { ...savedProject, script_raw: scriptRaw, subtitle_preset: preset },
       linked,
       timestamps,
       duration || (timestamps.at(-1)?.end ?? 0),
       audioPath
     );
-  }, [savedProject, audioPath, timestamps, duration, linked, scriptRaw, bannerText, preset]);
+  }, [savedProject, audioPath, timestamps, duration, linked, scriptRaw, preset]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -320,15 +315,6 @@ export const ProjectEditorDialog: React.FC<ProjectEditorDialogProps> = ({ projec
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs text-zinc-400">Texte de la bannière (hook visuel 0-3s)</Label>
-              <Input
-                value={bannerText}
-                onChange={(e) => setBannerText(e.target.value)}
-                placeholder="CE QU'ON NE VOUS DIT JAMAIS SUR CE MÉTIER"
-              />
             </div>
 
             <div className="space-y-1.5">

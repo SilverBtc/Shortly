@@ -78,7 +78,7 @@ export default function Step3SettingsPage() {
       <Accordion
         icon={<Captions className="h-4 w-4" />}
         title="Sous-titres cinétiques"
-        subtitle="Animation, preset de couleurs et boîte d'arrière-plan"
+        subtitle="Couleur du mot en cours — style TikTok officiel"
       >
         <CaptionSection />
       </Accordion>

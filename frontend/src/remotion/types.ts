@@ -38,22 +38,17 @@ export interface TikTokVideoProps {
   fps?: number;
   width?: number;
   height?: number;
-  banner: {
+  banner?: {
     text: string;
     showFirstSeconds: number;
   };
   captions: {
+    /** Mots horodatés (secondes) issus de Whisper */
     words: RemotionWord[];
-    activeColor: string;
-    inactiveColor: string;
-    highlightColor: string;
-    fontFamily: string;
-    fontWeight: number;
-    fontSize: number;
-    strokeWidth?: number;
-    emojis: CaptionEmoji[];
-    animation?: "word" | "phrase";
-    boxEnabled?: boolean;
+    /** Couleur du mot en cours (preset wizard) */
+    highlightColor?: string;
+    /** Rythme : 1 mot ou 3 mots par page */
+    wordsPerPage?: 1 | 3;
   };
   clips: RemotionClip[];
   maskArea?: MaskArea | null;

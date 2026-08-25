@@ -23,13 +23,13 @@ import { SUBTITLE_PRESETS, useWizardStore } from "@/lib/wizard-store";
 import type { JobStatus, ProjectAssetLink, VideoProject, WordTimestamp } from "@/lib/api-contract";
 import type { TikTokVideoProps } from "@/remotion/types";
 
-const PRESET_COLORS: Record<string, { activeColor: string; inactiveColor: string; highlightColor: string; fontSize: number; strokeWidth: number }> = {
-  "blue-white": { activeColor: "#3B82F6", inactiveColor: "#FFFFFF", highlightColor: "#FFD400", fontSize: 66, strokeWidth: 7 },
-  "yellow-white": { activeColor: "#FFD400", inactiveColor: "#FFFFFF", highlightColor: "#3B82F6", fontSize: 66, strokeWidth: 7 },
-  "green-flashy": { activeColor: "#00FF88", inactiveColor: "#FFFFFF", highlightColor: "#FF00FF", fontSize: 66, strokeWidth: 7 },
-  classic: { activeColor: "#FFD400", inactiveColor: "#FFFFFF", highlightColor: "#3B82F6", fontSize: 64, strokeWidth: 6 },
-  bold: { activeColor: "#FFD400", inactiveColor: "#FFFFFF", highlightColor: "#EF4444", fontSize: 74, strokeWidth: 9 },
-  neon: { activeColor: "#00FFCC", inactiveColor: "#FFFFFF", highlightColor: "#FF00FF", fontSize: 60, strokeWidth: 6 },
+const PRESET_COLORS: Record<string, string> = {
+  "blue-white": "#2F80FF",
+  "yellow-white": "#FFE014",
+  "green-flashy": "#00FF87",
+  classic: "#FFE014",
+  bold: "#FF3B3B",
+  neon: "#00FFCC",
 };
 
 /** Convertit un chemin local backend (…/data/media/…) en URL HTTP servable. */
@@ -41,14 +41,22 @@ function toMediaUrl(path: string | null | undefined): string | null {
   return path;
 }
 
+/** Construit l'URL HTTP de la musique de fond (servie par le backend). */
+function toMusicUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (path.startsWith("http")) return path;
+  const name = path.split(/[\\/]/).pop(); // basename du fichier
+  if (!name) return null;
+  return `${API_BASE}/api/wizard/music/audio/${encodeURIComponent(name)}`;
+}
+
 export default function Step5RenderPage() {
   const {
     links,
     hookId,
     voiceId,
     subtitlePreset,
-    subtitleAnimation,
-    boxEnabled,
+    subtitleSpeed,
     mask,
     musicPath,
     script,
@@ -76,12 +84,10 @@ export default function Step5RenderPage() {
     try {
       const resp = await wizardRender({
         title: defaultTitle,
-        banner_text: defaultTitle,
         script,
         voice_id: voiceId,
         subtitle_preset: subtitlePreset,
-        subtitle_animation: subtitleAnimation,
-        box_enabled: boxEnabled,
+        subtitle_animation: subtitleSpeed === "1" ? "word" : "phrase",
         mask: mask.enabled ? mask : null,
         music_path: musicPath,
         links: links.map((l) => ({
@@ -128,24 +134,19 @@ export default function Step5RenderPage() {
           } catch {
             /* pas de timestamps (montage seul) */
           }
-          const colors = PRESET_COLORS[p.subtitle_preset] ?? PRESET_COLORS["yellow-white"];
+          const highlightColor = PRESET_COLORS[p.subtitle_preset] ?? PRESET_COLORS["yellow-white"];
           const duration = words.length > 0 ? (words.at(-1)?.end ?? 61) : 61;
           const props = {
             audioPath: toMediaUrl(p.audio_path),
-            musicPath: toMediaUrl(p.music_path ?? null),
+            musicPath: toMusicUrl(p.music_path ?? null),
             durationSeconds: Math.max(duration, 1),
             fps: 30,
             width: 1080,
             height: 1920,
-            banner: { text: (p.banner_text || p.title).toUpperCase(), showFirstSeconds: 3 },
             captions: {
               words,
-              ...colors,
-              fontFamily: "Montserrat",
-              fontWeight: 800,
-              emojis: [],
-              animation: p.subtitle_animation ?? "word",
-              boxEnabled: !!p.box_enabled,
+              highlightColor,
+              wordsPerPage: (p.subtitle_animation === "word" ? 1 : 3) as 1 | 3,
             },
             clips: (detail.assets as ProjectAssetLink[]).map((link) => ({
               path: toMediaUrl(link.asset.file_path) ?? "",
@@ -161,7 +162,12 @@ export default function Step5RenderPage() {
           setPreviewProps(props);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Erreur de suivi du rendu");
+        window.clearInterval(timer);
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Erreur de suivi du rendu");
+          // Le job n'existe plus (404 après restart) : on nettoie le store
+          useWizardStore.getState().setRenderResult(null, null);
+        }
       }
     }, 1500);
     return () => {
@@ -211,8 +217,7 @@ export default function Step5RenderPage() {
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5">
               <p className="text-[10px] uppercase tracking-wider text-zinc-500">Voix / Sous-titres</p>
               <p className="font-semibold text-zinc-200">
-                {voiceLabel} · {presetLabel} · {subtitleAnimation === "word" ? "mot à mot" : "phrase par phrase"}
-                {boxEnabled ? " · Box" : ""}
+                {voiceLabel} · {presetLabel}
               </p>
             </div>
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5">
@@ -303,7 +308,7 @@ export default function Step5RenderPage() {
           <CardHeader>
             <CardTitle className="text-base">Prévisualisation temps réel</CardTitle>
             <CardDescription>
-              Voix Shortly (Qwen TTS), sous-titres {subtitleAnimation === "word" ? "mot-à-mot" : "phrase par phrase"} et musique
+              Voix Shortly (Qwen TTS), sous-titres TikTok officiels et musique
               {mask.enabled ? " — masque actif" : ""}.
             </CardDescription>
           </CardHeader>

@@ -129,42 +129,40 @@ export function VoiceSection() {
 /* 2. Sous-titres cinétiques                                            */
 /* ------------------------------------------------------------------ */
 export function CaptionSection() {
-  const { subtitleAnimation, setSubtitleAnimation, subtitlePreset, setSubtitlePreset, boxEnabled, setBoxEnabled } =
-    useWizardStore();
+  const { subtitlePreset, setSubtitlePreset, subtitleSpeed, setSubtitleSpeed } = useWizardStore();
 
-  const animations = [
-    { id: "word", label: "Mot par mot", desc: "Hormozi / MrBeast" },
-    { id: "phrase", label: "Phrase par phrase", desc: "Lecture posée" },
+  const speeds = [
+    { id: "1", label: "1 mot", desc: "Ultra punchy, effet karaoké" },
+    { id: "3", label: "3 mots", desc: "Style TikTok officiel" },
   ] as const;
   const presets = [
-    { id: "blue-white", label: "Bleu & Blanc", swatch: "#3B82F6" },
-    { id: "yellow-white", label: "Jaune & Blanc", swatch: "#FFD400" },
-    { id: "green-flashy", label: "Vert flashy", swatch: "#00FF88" },
+    { id: "blue-white", label: "Bleu & Blanc", swatch: "#2F80FF" },
+    { id: "yellow-white", label: "Jaune & Blanc", swatch: "#FFE014" },
+    { id: "green-flashy", label: "Vert flashy", swatch: "#00FF87" },
   ] as const;
 
   return (
     <div className="space-y-4">
       <div>
-        <p className="mb-2 text-xs font-semibold text-zinc-400">Animation</p>
+        <p className="mb-2 text-xs font-semibold text-zinc-400">Rythme (mots par page)</p>
         <div className="grid grid-cols-2 gap-2">
-          {animations.map((a) => (
+          {speeds.map((s) => (
             <button
-              key={a.id}
-              onClick={() => setSubtitleAnimation(a.id)}
+              key={s.id}
+              onClick={() => setSubtitleSpeed(s.id)}
               className={cn(
                 "rounded-lg border p-2.5 text-left",
-                subtitleAnimation === a.id ? "border-amber-400 bg-amber-400/10" : "border-zinc-800 bg-zinc-900/40"
+                subtitleSpeed === s.id ? "border-amber-400 bg-amber-400/10" : "border-zinc-800 bg-zinc-900/40"
               )}
             >
-              <p className="text-xs font-bold text-zinc-100">{a.label}</p>
-              <p className="text-[10px] text-zinc-500">{a.desc}</p>
+              <p className="text-xs font-bold text-zinc-100">{s.label}</p>
+              <p className="text-[10px] text-zinc-500">{s.desc}</p>
             </button>
           ))}
         </div>
       </div>
-
       <div>
-        <p className="mb-2 text-xs font-semibold text-zinc-400">Style (presets)</p>
+        <p className="mb-2 text-xs font-semibold text-zinc-400">Couleur du mot en cours</p>
         <div className="grid grid-cols-3 gap-2">
           {presets.map((p) => (
             <button
@@ -183,32 +181,10 @@ export function CaptionSection() {
             </button>
           ))}
         </div>
+        <p className="mt-2 text-[10px] text-zinc-500">
+          Style TikTok officiel : pages de 3-4 mots, contour noir épais, animation spring.
+        </p>
       </div>
-
-      <label className="flex cursor-pointer items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-        <span>
-          <span className="block text-xs font-semibold text-zinc-200">Boîte d'arrière-plan (Box)</span>
-          <span className="block text-[10px] text-zinc-500">
-            Fond semi-transparent derrière chaque mot — masque le texte parasite d'origine
-          </span>
-        </span>
-        <button
-          role="switch"
-          aria-checked={boxEnabled}
-          onClick={() => setBoxEnabled(!boxEnabled)}
-          className={cn(
-            "relative h-5 w-9 rounded-full transition-colors",
-            boxEnabled ? "bg-amber-400" : "bg-zinc-700"
-          )}
-        >
-          <span
-            className={cn(
-              "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
-              boxEnabled ? "left-[18px]" : "left-0.5"
-            )}
-          />
-        </button>
-      </label>
     </div>
   );
 }
